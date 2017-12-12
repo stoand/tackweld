@@ -1,33 +1,39 @@
 //! Convert templates with many component definitions into files containing
 //! a single component definition.
-//! 
+//!
 //! Outputs are saved to the build directory where the `tw!()` macro will read them.
-//! 
+//!
 //! # Example
-//! 
+//!
+//! ## `build.rs`
 //! ```
-//! // Basic usage
-//! parse_templates(vec!["src/**/*.html"]).unwrap();
+//! extern crate tackweld_parse_templates;
+//!
+//! use tackweld_parse_templates::parse_templates;
+//!
+//! fn main() {
+//!     parse_templates(vec!["src/**/*.html".into()]).unwrap();
+//! }
 //! ```
-//! 
-//! Contents of `src/home.html`:
-//! 
+//!
+//! ## `src/home.html`
+//!
 //! ```html
 //! ::root
 //! <div>Items: {items}</div>
-//! 
+//!
 //! ::item
 //! <div>value: {val}</div>
 //! ```
-//! 
-//! Contents written to `<OUT_DIR>/tw_tpl_root.html`:
-//! 
-//! 
+//!
+//! ## `<OUT_DIR>/tw_tpl_root.html` (generated)
+//!
+//!
 //! ```html
 //! <div>Items: {items}</div>
 //! ```
-//! Contents written to `<OUT_DIR>/tw_tpl_item.html`:
-//! 
+//! ## `<OUT_DIR>/tw_tpl_item.html` (generated)
+//!
 //! ```html
 //! <div>value: {val}</div>
 //! ```
