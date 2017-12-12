@@ -46,7 +46,9 @@ extern crate walkdir;
 
 use std::collections::HashMap;
 use std::{env, io};
-use std::path::Path;
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::{Path, StripPrefixError};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
 error_chain! {
@@ -54,6 +56,7 @@ error_chain! {
        Io(io::Error);
        Globset(globset::Error);
        WalkDir(walkdir::Error);
+       StripPrefix(StripPrefixError);
    }
 
    errors {
@@ -65,30 +68,34 @@ error_chain! {
 }
 
 pub fn parse_templates(src_dirs: Vec<String>) -> Result<()> {
-    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or(String::new());
-    let glob_matcher = build_globset(&base_dir, src_dirs)?;
+    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap(); //_or(String::new());
+    let glob_matcher = build_globset(src_dirs)?;
 
     let mut templates = HashMap::new();
 
-    let template_files = walkdir::WalkDir::new(&base_dir)
+    let search_files = walkdir::WalkDir::new(&base_dir)
         .into_iter()
-        .filter_entry(|entry| glob_matcher.matches(entry.path()).len() > 0);
+        .filter_map(|e| e.ok());
 
-    for template_file in template_files {
-        println!("{}", template_file?.path().to_string_lossy());
-        parse_template_source("1", &mut templates)?;
+    for entry in search_files {
+        let relative_path = entry.path().strip_prefix(&base_dir)?;
+
+        if glob_matcher.matches(&relative_path).len() > 0 {
+            let mut contents = String::new();
+            File::open(entry.path())?.read_to_string(&mut contents)?;
+
+            parse_template_source(&contents, &mut templates)?;
+        }
     }
-    // let files = src_dirs.iter().flat_map(|dir| );
 
     Ok(())
 }
 
-fn build_globset(base_dir: &str, glob_strings: Vec<String>) -> Result<GlobSet> {
+fn build_globset(glob_strings: Vec<String>) -> Result<GlobSet> {
     let mut globset_builder = GlobSetBuilder::new();
 
     for glob_string in glob_strings.iter() {
-        let path = Path::new(base_dir).join(glob_string);
-        globset_builder.add(Glob::new(&path.to_string_lossy())?);
+        globset_builder.add(Glob::new(glob_string)?);
     }
 
     Ok(globset_builder.build()?)
@@ -102,8 +109,27 @@ fn parse_template_source(source: &str, templates: &mut HashMap<String, String>) 
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn it_works() {
-        super::parse_templates(vec!["src/**/*.html".into()]).unwrap();
+        let mut templates = HashMap::new();
+
+        let src = "
+        ::root
+        <div>Items: {items}</div>
+
+        ::item
+        <div>value: {val}</div>
+        ";
+
+        parse_template_source(src, &mut templates).unwrap();
+
+        let expected_keys = vec!["root", "item"];
+
+        let expected_values = vec!["<div>Items: {items}</div>\n", "<div>value: {val}</div>\n\n"];
+
+        assert_eq!(templates.keys().collect::<Vec<_>>(), expected_keys);
+        assert_eq!(templates.values().collect::<Vec<_>>(), expected_values);
     }
 }
