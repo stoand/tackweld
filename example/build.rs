@@ -4,5 +4,5 @@ use std::env;
 use tackweld_parse_templates::parse_templates;
 
 fn main() {
-    parse_templates(vec!["src/**/*.html".into()]).unwrap();
+    parse_templates(vec!["src/**/*.html".into()], false).unwrap();
 }

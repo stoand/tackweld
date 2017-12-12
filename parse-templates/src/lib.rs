@@ -51,9 +51,15 @@ use std::collections::HashMap;
 use std::{env, io};
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::StripPrefixError;
+use std::path::{Path, StripPrefixError};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use regex::Regex;
+
+#[derive(Hash, Eq, PartialEq, Debug)]
+struct ComponentDefinition {
+    contents: String,
+    defined_in_templates: Vec<String>,
+}
 
 error_chain! {
    foreign_links {
@@ -68,18 +74,20 @@ error_chain! {
            description("All tackweld templates must start with a definition like:
             \"::component_name1234\"")
            display("Tackweld template \"{}\" missing component\
-            definition like \"::component_name1234\" at line 1", template_path)
+            definition (like for example \"::component_name1234\") at line 1", template_path)
        }
 
-       ComponentRedefinition(component_id: String, declarations: String) {
-           description("Unable to parse tackweld template source.")
+       ComponentRedefinition(declarations: String) {
+           description("Tackweld components ids were defined multiple times")
            display("There are conflicting component declarations:\n{}", declarations)
        }
    }
 }
 
-pub fn parse_templates(src_dirs: Vec<String>) -> Result<()> {
-    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or(String::new());
+pub fn parse_templates(src_dirs: Vec<String>, allow_redefinition: bool) -> Result<()> {
+    let base_dir = env::var("CARGO_MANIFEST_DIR")
+        .expect("OUT_DIR env var missing. This function should be run from build.rs");
+
     let glob_matcher = build_globset(src_dirs)?;
 
     let mut components = HashMap::new();
@@ -99,6 +107,38 @@ pub fn parse_templates(src_dirs: Vec<String>) -> Result<()> {
         }
     }
 
+    if allow_redefinition {
+        write_components(components)
+    } else {
+        // Generate a meaningful error message listing component naming conflicts
+        let template_redefinitions = components.iter().fold(String::new(), |acc, (id, def)| {
+            if def.defined_in_templates.len() > 1 {
+                acc + "\n" + id + ":\n" + &def.defined_in_templates.join("\n")
+            } else {
+                acc
+            }
+        });
+
+        if !template_redefinitions.is_empty() {
+            Err(ErrorKind::ComponentRedefinition(template_redefinitions).into())
+        } else {
+            write_components(components)
+        }
+    }
+}
+
+fn write_components(components: HashMap<String, ComponentDefinition>) -> Result<()> {
+    let out_dir = env::var("OUT_DIR")
+        .expect("OUT_DIR env var missing. This function should be run from build.rs");
+
+    for (id, def) in components.into_iter() {
+        let file_name = "tw_tpl_".to_string() + &id;
+        let output_path = Path::new(&out_dir).join(&file_name);
+
+        let mut file = File::create(output_path)?;
+        file.write(def.contents.as_bytes())?;
+    }
+
     Ok(())
 }
 
@@ -110,12 +150,6 @@ fn build_globset(glob_strings: Vec<String>) -> Result<GlobSet> {
     }
 
     Ok(globset_builder.build()?)
-}
-
-#[derive(Hash, Eq, PartialEq, Debug)]
-struct ComponentDefinition {
-    contents: String,
-    defined_in_templates: Vec<String>,
 }
 
 fn parse_template_source(
@@ -144,6 +178,7 @@ fn parse_template_source(
                 defined_in_templates: Vec::new(),
             });
 
+            def.contents = String::new();
             def.defined_in_templates.push(template_path.to_string());
         } else {
             if let Some(def) = current_component_id
@@ -166,31 +201,29 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut templates = HashMap::new();
+        let mut components_expected = HashMap::new();
 
-        let src = "::root\n<div>Items: {items}</div>\n::item\n<div>value: {val}</div>";
+        let src1 = "::root\n<div>Items: {items}</div>\n::item\n<div>value: {val}</div>";
+        // "root" is defined twice!
+        let src2 = "::root\n<span>asdf</span>";
 
-        parse_template_source("src/asdf.html", src, &mut templates).unwrap();
+        parse_template_source("src/one.html", src1, &mut components_expected).unwrap();
+        parse_template_source("src/two.html", src2, &mut components_expected).unwrap();
 
-        let expected_keys = vec!["item", "root"];
+        let mut components_actual = HashMap::new();
 
         let root_def = ComponentDefinition {
-            contents: "<div>Items: {items}</div>".to_string(),
-            defined_in_templates: vec!["src/asdf.html".to_string()],
+            contents: "<span>asdf</span>".to_string(),
+            defined_in_templates: vec!["src/one.html".to_string(), "src/two.html".to_string()],
         };
+        components_actual.insert("root".to_string(), root_def);
 
         let item_def = ComponentDefinition {
             contents: "<div>value: {val}</div>".to_string(),
-            defined_in_templates: vec!["src/asdf.html".to_string()],
+            defined_in_templates: vec!["src/one.html".to_string()],
         };
+        components_actual.insert("item".to_string(), item_def);
 
-        let mut actual_keys = templates.keys().collect::<Vec<_>>();
-        actual_keys.sort();
-
-        assert_eq!(actual_keys, expected_keys);
-        assert_eq!(
-            templates.values().collect::<Vec<_>>(),
-            vec![&root_def, &item_def]
-        );
+        assert_eq!(components_expected, components_actual);
     }
 }
