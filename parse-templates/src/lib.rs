@@ -45,6 +45,8 @@ use std::io;
 
 pub fn parse_templates(src_dirs: Vec<String>) -> io::Result<()> {
 
+    // todo use globset to match paths
+    // https://github.com/BurntSushi/ripgrep/tree/master/globset
     let files = src_dirs.iter().flat_map(|dir | walkdir::WalkDir::new(&dir));
 
     Ok(())
