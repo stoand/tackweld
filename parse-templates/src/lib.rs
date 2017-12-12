@@ -9,6 +9,7 @@
 //! ```
 //! extern crate tackweld_parse_templates;
 //!
+//! use std::env;
 //! use tackweld_parse_templates::parse_templates;
 //!
 //! fn main() {
@@ -44,41 +45,65 @@ extern crate globset;
 extern crate walkdir;
 
 use std::collections::HashMap;
-use std::io;
+use std::{env, io};
+use std::path::Path;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
 error_chain! {
-   links {
-       Io(io::Error, io::ErrorKind);
-       Globset(globset::Error, globset::ErrorKind);
+   foreign_links {
+       Io(io::Error);
+       Globset(globset::Error);
+       WalkDir(walkdir::Error);
+   }
+
+   errors {
+       ParseTemplate(template_path: String) {
+           description("Unable to parse tackweld template source.")
+           display("Invalid template format at path: \"{:?}\"", template_path)
+       }
    }
 }
 
-pub fn parse_templates(base_dir: &str, src_dirs: Vec<String>, out_dir: &str) -> Result<()> {
-    let glob_matcher = build_globset(src_dirs)?;
+pub fn parse_templates(src_dirs: Vec<String>) -> Result<()> {
+    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or(String::new());
+    let glob_matcher = build_globset(&base_dir, src_dirs)?;
 
-    // let a = walkdir::WalkDir::new(&base_dir).into_iter();
+    let mut templates = HashMap::new();
+
+    let template_files = walkdir::WalkDir::new(&base_dir)
+        .into_iter()
+        .filter_entry(|entry| glob_matcher.matches(entry.path()).len() > 0);
+
+    for template_file in template_files {
+        println!("{}", template_file?.path().to_string_lossy());
+        parse_template_source("1", &mut templates)?;
+    }
     // let files = src_dirs.iter().flat_map(|dir| );
 
     Ok(())
 }
 
-fn build_globset(glob_strings: Vec<String>) -> Result<GlobSet> {
+fn build_globset(base_dir: &str, glob_strings: Vec<String>) -> Result<GlobSet> {
     let mut globset_builder = GlobSetBuilder::new();
 
     for glob_string in glob_strings.iter() {
-        globset_builder.add(Glob::new(glob_string)?);
+        let path = Path::new(base_dir).join(glob_string);
+        globset_builder.add(Glob::new(&path.to_string_lossy())?);
     }
 
     Ok(globset_builder.build()?)
 }
 
-fn parse_template_source(templates: &mut HashMap<String, String>) {}
+fn parse_template_source(source: &str, templates: &mut HashMap<String, String>) -> Result<()> {
+    // let a = ErrorKind::ParseTemplate("asdf".into());
+
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        super::parse_templates(vec!["src/**/*.html".into()]).unwrap();
     }
 }

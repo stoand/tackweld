@@ -4,8 +4,8 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "preTest",
-            "command": "rm ../target/debug/tackweld_parse_templates-* -f; cargo test --no-run && rm ../target/debug/tackweld_parse_templates-*.d -f && cp ../target/debug/tackweld_parse_templates-* ../target/debug/tackweld_parse_templates-test",
+            "label": "preRun",
+            "command": "cargo build",
             "type": "shell",
             "presentation": {
                 "reveal": "never"

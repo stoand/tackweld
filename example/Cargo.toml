@@ -1,0 +1,9 @@
+[package]
+name = "example"
+version = "0.1.0"
+authors = ["Andreas <shadowstep7@gmail.com>"]
+
+build="build.rs"
+
+[build-dependencies]
+tackweld-parse-templates = { path = "../parse-templates" }

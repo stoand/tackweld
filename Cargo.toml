@@ -1,4 +1,6 @@
 [workspace]
 members = [
-    "parse-templates"
+    "parse-templates",
+    "example"
 ]
+

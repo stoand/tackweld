@@ -5,10 +5,9 @@
             "type": "lldb",
             "request": "launch",
             "name": "Test",
-            "program": "${workspaceRoot}/../target/debug/tackweld_parse_templates-test",
-            "args": ["--nocapture"],
+            "program": "${workspaceRoot}/../target/debug/example",
             "cwd": "${workspaceRoot}",
-            "preLaunchTask": "preTest",
+            "preLaunchTask": "preRun",
             "internalConsoleOptions": "openOnSessionStart"
         }
     ]
