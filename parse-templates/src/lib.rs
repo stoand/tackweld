@@ -38,10 +38,15 @@
 //! <div>value: {val}</div>
 //! ```
 
+extern crate walkdir;
+
 use std::collections::HashMap;
 use std::io;
 
 pub fn parse_templates(src_dirs: Vec<String>) -> io::Result<()> {
+
+    let files = src_dirs.iter().flat_map(|dir | walkdir::WalkDir::new(&dir));
+
     Ok(())
 }
 
