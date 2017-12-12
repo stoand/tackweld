@@ -38,18 +38,39 @@
 //! <div>value: {val}</div>
 //! ```
 
+#[macro_use]
+extern crate error_chain;
+extern crate globset;
 extern crate walkdir;
 
 use std::collections::HashMap;
 use std::io;
+use globset::{Glob, GlobSet, GlobSetBuilder};
 
-pub fn parse_templates(src_dirs: Vec<String>) -> io::Result<()> {
+error_chain! {
+   links {
+       Io(io::Error, io::ErrorKind);
+       Globset(globset::Error, globset::ErrorKind);
+   }
+}
 
-    // todo use globset to match paths
-    // https://github.com/BurntSushi/ripgrep/tree/master/globset
-    let files = src_dirs.iter().flat_map(|dir | walkdir::WalkDir::new(&dir));
+pub fn parse_templates(base_dir: &str, src_dirs: Vec<String>, out_dir: &str) -> Result<()> {
+    let glob_matcher = build_globset(src_dirs)?;
+
+    // let a = walkdir::WalkDir::new(&base_dir).into_iter();
+    // let files = src_dirs.iter().flat_map(|dir| );
 
     Ok(())
+}
+
+fn build_globset(glob_strings: Vec<String>) -> Result<GlobSet> {
+    let mut globset_builder = GlobSetBuilder::new();
+
+    for glob_string in glob_strings.iter() {
+        globset_builder.add(Glob::new(glob_string)?);
+    }
+
+    Ok(globset_builder.build()?)
 }
 
 fn parse_template_source(templates: &mut HashMap<String, String>) {}
