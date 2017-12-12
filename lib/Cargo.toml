@@ -1,0 +1,6 @@
+[package]
+name = "tackweld"
+version = "0.1.0"
+authors = ["Andreas <shadowstep7@gmail.com>"]
+
+[dependencies]

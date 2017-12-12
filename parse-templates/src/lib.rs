@@ -61,6 +61,8 @@ struct ComponentDefinition {
     defined_in_templates: Vec<String>,
 }
 
+pub const TEMPLATE_PREFIX : &str = "tw_tpl_";
+
 error_chain! {
    foreign_links {
        Io(io::Error);
@@ -132,7 +134,7 @@ fn write_components(components: HashMap<String, ComponentDefinition>) -> Result<
         .expect("OUT_DIR env var missing. This function should be run from build.rs");
 
     for (id, def) in components.into_iter() {
-        let file_name = "tw_tpl_".to_string() + &id;
+        let file_name = TEMPLATE_PREFIX.to_string() + &id;
         let output_path = Path::new(&out_dir).join(&file_name);
 
         let mut file = File::create(output_path)?;

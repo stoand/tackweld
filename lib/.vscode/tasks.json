@@ -1,0 +1,15 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "preTest",
+            "command": "rm ../target/debug/tackweld-* -f; cargo test --no-run && rm ../target/debug/tackweld-*.d -f && cp ../target/debug/tackweld-* ../target/debug/tackweld-test",
+            "type": "shell",
+            "presentation": {
+                "reveal": "never"
+            }
+        }
+    ]
+}
