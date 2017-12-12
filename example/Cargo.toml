@@ -5,6 +5,9 @@ authors = ["Andreas <shadowstep7@gmail.com>"]
 
 build = "build.rs"
 
+[lib]
+crate-type=["cdylib"]
+
 [dependencies]
 tackweld = { path = "../lib" }
 
