@@ -1,0 +1,6 @@
+[package]
+name = "tackweld-parse-templates"
+version = "0.1.0"
+authors = ["Andreas Stocker <shadowstep7@gmail.com>"]
+
+[dependencies]
