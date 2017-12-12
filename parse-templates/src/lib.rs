@@ -1,5 +1,5 @@
-//! Convert templates with many component definitions into files containing
-//! a single component definition.
+//! Convert templates with many tpl definitions into files containing
+//! a single tpl definition.
 //!
 //! Outputs are saved to the build directory where the `tw!()` macro will read them.
 //!
@@ -42,14 +42,18 @@
 #[macro_use]
 extern crate error_chain;
 extern crate globset;
+#[macro_use]
+extern crate lazy_static;
+extern crate regex;
 extern crate walkdir;
 
 use std::collections::HashMap;
 use std::{env, io};
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::{Path, StripPrefixError};
+use std::path::StripPrefixError;
 use globset::{Glob, GlobSet, GlobSetBuilder};
+use regex::Regex;
 
 error_chain! {
    foreign_links {
@@ -60,9 +64,16 @@ error_chain! {
    }
 
    errors {
-       ParseTemplate(template_path: String) {
+       TemplateMissingStartDef(template_path: String) {
+           description("All tackweld templates must start with a definition like:
+            \"::component_name1234\"")
+           display("Tackweld template \"{}\" missing component\
+            definition like \"::component_name1234\" at line 1", template_path)
+       }
+
+       ComponentRedefinition(component_id: String, declarations: String) {
            description("Unable to parse tackweld template source.")
-           display("Invalid template format at path: \"{:?}\"", template_path)
+           display("There are conflicting component declarations:\n{}", declarations)
        }
    }
 }
@@ -71,7 +82,7 @@ pub fn parse_templates(src_dirs: Vec<String>) -> Result<()> {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap(); //_or(String::new());
     let glob_matcher = build_globset(src_dirs)?;
 
-    let mut templates = HashMap::new();
+    let mut components = HashMap::new();
 
     let search_files = walkdir::WalkDir::new(&base_dir)
         .into_iter()
@@ -84,7 +95,7 @@ pub fn parse_templates(src_dirs: Vec<String>) -> Result<()> {
             let mut contents = String::new();
             File::open(entry.path())?.read_to_string(&mut contents)?;
 
-            parse_template_source(&contents, &mut templates)?;
+            parse_template_source(&relative_path.to_string_lossy(), &contents, &mut components)?;
         }
     }
 
@@ -101,8 +112,44 @@ fn build_globset(glob_strings: Vec<String>) -> Result<GlobSet> {
     Ok(globset_builder.build()?)
 }
 
-fn parse_template_source(source: &str, templates: &mut HashMap<String, String>) -> Result<()> {
-    // let a = ErrorKind::ParseTemplate("asdf".into());
+#[derive(Hash, Eq, PartialEq, Debug)]
+struct ComponentDefinition {
+    contents: String,
+    defined_in_templates: Vec<String>,
+}
+
+fn parse_template_source(
+    template_path: &str,
+    source: &str,
+    components: &mut HashMap<String, ComponentDefinition>,
+) -> Result<()> {
+    lazy_static! {
+        static ref COMPONENTS_DEF_RE: Regex = Regex::new(r"^::([\d_]*)$").unwrap();
+    };
+
+    let lines = source.lines();
+    let mut current_component_id: Option<String> = None;
+    // let mut current_component_body = String::new();
+
+    for line in source.lines() {
+        let component_id_match = COMPONENTS_DEF_RE.captures(line).and_then(|c| c.get(0));
+
+        if let Some(component_id) = component_id_match {
+            let id = component_id.as_str().to_string();
+            current_component_id = Some(id.clone());
+
+            // Add a new component definition if it doesn't exist
+            // or add our template file to the list of files defining the component
+            // We will need this list to print an error if a component is defined multiple times
+            let mut def = components.entry(id).or_insert(ComponentDefinition {
+                contents: String::new(),
+                defined_in_templates: Vec::new(),
+            });
+
+            def.defined_in_templates.push(template_path.to_string());
+        } else {
+        }
+    }
 
     Ok(())
 }
@@ -123,11 +170,21 @@ mod tests {
         <div>value: {val}</div>
         ";
 
-        parse_template_source(src, &mut templates).unwrap();
+        parse_template_source("src/asdf.html", src, &mut templates).unwrap();
 
         let expected_keys = vec!["root", "item"];
 
-        let expected_values = vec!["<div>Items: {items}</div>\n", "<div>value: {val}</div>\n\n"];
+        let root_def = ComponentDefinition {
+            contents: "<div>Items: {items}</div>\n".to_string(),
+            defined_in_templates: vec!["src/asdf.html".to_string()],
+        };
+
+        let item_def = ComponentDefinition {
+            contents: "<div>value: {val}</div>\n\n".to_string(),
+            defined_in_templates: vec!["src/asdf.html".to_string()],
+        };
+
+        let expected_values = vec![&root_def, &item_def];
 
         assert_eq!(templates.keys().collect::<Vec<_>>(), expected_keys);
         assert_eq!(templates.values().collect::<Vec<_>>(), expected_values);
