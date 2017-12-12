@@ -79,7 +79,7 @@ error_chain! {
 }
 
 pub fn parse_templates(src_dirs: Vec<String>) -> Result<()> {
-    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap(); //_or(String::new());
+    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or(String::new());
     let glob_matcher = build_globset(src_dirs)?;
 
     let mut components = HashMap::new();
@@ -124,15 +124,13 @@ fn parse_template_source(
     components: &mut HashMap<String, ComponentDefinition>,
 ) -> Result<()> {
     lazy_static! {
-        static ref COMPONENTS_DEF_RE: Regex = Regex::new(r"^::([\d_]*)$").unwrap();
+        static ref COMPONENTS_DEF_RE: Regex = Regex::new(r"^\s*::([\w_]+)\s*$").unwrap();
     };
 
-    let lines = source.lines();
     let mut current_component_id: Option<String> = None;
-    // let mut current_component_body = String::new();
 
-    for line in source.lines() {
-        let component_id_match = COMPONENTS_DEF_RE.captures(line).and_then(|c| c.get(0));
+    for line in source.trim_left().lines() {
+        let component_id_match = COMPONENTS_DEF_RE.captures(line).and_then(|c| c.get(1));
 
         if let Some(component_id) = component_id_match {
             let id = component_id.as_str().to_string();
@@ -148,6 +146,14 @@ fn parse_template_source(
 
             def.defined_in_templates.push(template_path.to_string());
         } else {
+            if let Some(def) = current_component_id
+                .as_ref()
+                .and_then(|id| components.get_mut(id))
+            {
+                def.contents += line;
+            } else {
+                return Err(ErrorKind::TemplateMissingStartDef(template_path.into()).into());
+            }
         }
     }
 
@@ -162,31 +168,29 @@ mod tests {
     fn it_works() {
         let mut templates = HashMap::new();
 
-        let src = "
-        ::root
-        <div>Items: {items}</div>
-
-        ::item
-        <div>value: {val}</div>
-        ";
+        let src = "::root\n<div>Items: {items}</div>\n::item\n<div>value: {val}</div>";
 
         parse_template_source("src/asdf.html", src, &mut templates).unwrap();
 
-        let expected_keys = vec!["root", "item"];
+        let expected_keys = vec!["item", "root"];
 
         let root_def = ComponentDefinition {
-            contents: "<div>Items: {items}</div>\n".to_string(),
+            contents: "<div>Items: {items}</div>".to_string(),
             defined_in_templates: vec!["src/asdf.html".to_string()],
         };
 
         let item_def = ComponentDefinition {
-            contents: "<div>value: {val}</div>\n\n".to_string(),
+            contents: "<div>value: {val}</div>".to_string(),
             defined_in_templates: vec!["src/asdf.html".to_string()],
         };
 
-        let expected_values = vec![&root_def, &item_def];
+        let mut actual_keys = templates.keys().collect::<Vec<_>>();
+        actual_keys.sort();
 
-        assert_eq!(templates.keys().collect::<Vec<_>>(), expected_keys);
-        assert_eq!(templates.values().collect::<Vec<_>>(), expected_values);
+        assert_eq!(actual_keys, expected_keys);
+        assert_eq!(
+            templates.values().collect::<Vec<_>>(),
+            vec![&root_def, &item_def]
+        );
     }
 }
