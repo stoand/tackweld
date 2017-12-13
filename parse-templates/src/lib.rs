@@ -54,6 +54,7 @@ use std::io::prelude::*;
 use std::path::{Path, StripPrefixError};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use regex::Regex;
+use std::fmt;
 
 #[derive(Hash, Eq, PartialEq, Debug)]
 struct ComponentDefinition {
@@ -200,6 +201,27 @@ fn parse_template_source(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct C;
+
+    struct Container<'a> {
+        a: &'a A,
+        d: &'a fmt::Display,
+    }
+
+    struct B;
+
+    trait A {
+        fn render(&self) {
+
+        }
+
+        fn a(&self);
+    }
+
+    fn asdf() {
+
+    }
 
     #[test]
     fn it_works() {
